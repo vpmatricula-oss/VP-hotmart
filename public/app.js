@@ -255,17 +255,19 @@ function salesTableHTML(logs) {
       : l.status?.includes('rejeitado') ? 'rejeitado' : l.status?.includes('ignorado') ? 'ignorado' : 'recebido';
     const when = new Date(l.at).toLocaleString('pt-BR');
     return `<tr>
-      <td>${when}</td>
+      <td style="white-space:nowrap">${when}</td>
       <td><b>${esc(l.productName || '—')}</b></td>
-      <td>${esc(l.buyerName || '—')}<br><span style="color:var(--muted);font-size:12px">${esc(l.buyerEmail || l.buyerPhone || '')}</span></td>
-      <td>${esc(l.event || '')}</td>
+      <td>${esc(l.buyerName || '—')}</td>
+      <td style="white-space:nowrap">${esc(l.buyerPhone || '—')}</td>
+      <td>${esc(l.buyerEmail || '—')}</td>
+      <td style="white-space:nowrap">${esc(l.buyerDocument || '—')}</td>
       <td><span class="status-tag status-${cls}">${esc(l.status || '')}</span>${l.error ? `<br><span style="color:var(--red);font-size:11px">${esc(l.error)}</span>` : ''}</td>
     </tr>`;
   }).join('');
   return `<div style="padding:10px 14px 4px;color:var(--muted);font-size:12px;font-weight:600">${logs.length} registro(s)</div>
-    <table class="table">
-      <thead><tr><th>Data</th><th>Produto</th><th>Aluno</th><th>Evento</th><th>Status</th></tr></thead>
-      <tbody>${rows}</tbody></table>`;
+    <div style="overflow-x:auto"><table class="table">
+      <thead><tr><th>Data</th><th>Produto</th><th>Nome</th><th>Telefone</th><th>E-mail</th><th>CPF</th><th>Status</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
 }
 
 // ====================== Tela: Configurações ======================

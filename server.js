@@ -145,10 +145,11 @@ app.post('/webhook/hotmart', async (req, res) => {
 
   const log = {
     event: event || 'desconhecido',
-    productName: product.name || produto?.name || '—',
+    productName: produto?.name || product.name || '—', // usa o nome do painel (reflete renomeações)
     buyerName: buyer.name || '—',
     buyerEmail: buyer.email || '',
     buyerPhone: buyer.checkout_phone || buyer.phone || '',
+    buyerDocument: buyer.document || buyer.cpf || buyer.doc || '', // CPF
     status: 'recebido',
   };
 
