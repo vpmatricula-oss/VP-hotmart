@@ -73,7 +73,6 @@ function selectView(v) {
   if (v === 'sales') return renderSales();
   if (v === 'settings') return renderSettings();
   if (v === 'guide') return renderGuide();
-  if (v === 'bulk') return renderBulk();
   if (v === 'livro') return renderLivro();
   renderEmpty();
 }
