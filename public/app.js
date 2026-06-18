@@ -68,7 +68,13 @@ function setNavActive() {
 
 // ====================== Navegação ======================
 function selectProduct(id) { state.view = 'product'; state.current = id; setNavActive(); renderProduct(); }
-function selectView(v) { state.view = v; state.current = null; setNavActive(); v === 'sales' ? renderSales() : v === 'settings' ? renderSettings() : renderEmpty(); }
+function selectView(v) {
+  state.view = v; state.current = null; setNavActive();
+  if (v === 'sales') return renderSales();
+  if (v === 'settings') return renderSettings();
+  if (v === 'guide') return renderGuide();
+  renderEmpty();
+}
 
 async function addProduct() {
   const p = await api.post('/api/products', { name: 'Novo produto', active: false });
@@ -267,6 +273,62 @@ async function renderSettings() {
     toast('Configurações salvas ✅');
     renderSettings();
   };
+}
+
+// ====================== Tela: Guia rápido ======================
+function renderGuide() {
+  $('#view').innerHTML = `
+    <div class="page-head"><h1>📖 Guia rápido</h1>
+      <p>Como adicionar um novo produto — tudo por aqui, sem mexer em código.</p></div>
+
+    <div class="card">
+      <h3>🔁 Como funciona o disparo automático</h3>
+      <p class="hint">Vale para TODOS os produtos, não só o primeiro:</p>
+      <div style="font-size:14px;line-height:2">
+        💳 Compra aprovada na Hotmart<br>
+        ↓ a Hotmart chama o webhook<br>
+        🔍 o sistema acha o produto pelo <b>ID da Hotmart</b><br>
+        🤖 se o aluno não existe no ManyChat, <b>cria o contato</b><br>
+        📲 dispara o <b>Flow (template aprovado)</b> daquele produto, com o link do grupo
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>➕ Adicionar um produto novo (passo a passo)</h3>
+
+      <p style="font-weight:700;margin:14px 0 6px">1) No ManyChat — preparar a mensagem</p>
+      <div class="hint" style="margin-bottom:6px">Cada produto tem sua própria mensagem:</div>
+      <ol style="font-size:13.5px;line-height:1.9;padding-left:20px">
+        <li>Crie/aprove o <b>Modelo de Mensagem (template)</b> de boas-vindas desse produto.</li>
+        <li>Em <b>Automação</b>, crie um <b>Flow</b> com um bloco de WhatsApp usando esse template
+            (marque <b>“Enviar fora da janela de 24h”</b> para alcançar quem acabou de comprar).</li>
+        <li>No flow: <b>⋯ → Get Flow API Trigger</b> e copie o ID (começa com <b>content...</b>).
+            <br><span class="hint">Dica: também dá pra pegar na URL do flow, depois de <code>/cms/files/</code>.</span></li>
+      </ol>
+
+      <p style="font-weight:700;margin:18px 0 6px">2) Aqui no painel — cadastrar</p>
+      <ol style="font-size:13.5px;line-height:1.9;padding-left:20px">
+        <li>Clique em <b>＋ Novo produto</b> (ou, se já houve uma venda, a aba aparece sozinha).</li>
+        <li>Preencha: <b>Nome</b>, <b>ID do produto na Hotmart</b>, <b>Flow ID</b> (content...) e <b>link do grupo</b>.</li>
+        <li>Ajuste o texto de pré-visualização se quiser e marque <b>Produto ativo</b> ✅.</li>
+        <li><b>Salvar</b>. Pronto — esse produto já dispara sozinho.</li>
+      </ol>
+
+      <p style="font-weight:700;margin:18px 0 6px">3) Na Hotmart — uma vez só</p>
+      <div class="hint">O webhook já está configurado e serve para <b>todos</b> os produtos.
+        Só confira que cada produto novo tem o webhook de <b>Compra aprovada</b> ativo.</div>
+    </div>
+
+    <div class="card" style="background:#fff7f5;border-color:#ffd9cc">
+      <h3>💡 Resumo de bolso</h3>
+      <p style="font-size:14px;margin:0">
+        <b>Produto novo</b> = pegar o <b>Flow ID</b> no ManyChat + cadastrar a aba aqui com o
+        <b>ID da Hotmart</b>. O resto (criar contato + enviar) é automático. 🎉
+      </p>
+    </div>
+
+    <div class="btn-row"><span class="spacer"></span>
+      <button class="btn btn-primary" onclick="addProduct()">＋ Adicionar produto agora</button></div>`;
 }
 
 // ====================== Conexão (status no rodapé) ======================
