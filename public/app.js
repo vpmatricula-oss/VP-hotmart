@@ -202,8 +202,67 @@ async function testSend(id) {
 }
 
 // ====================== Tela: Vendas / Logs ======================
+let salesLogs = [];
+
 async function renderSales() {
-  const logs = await api.get('/api/logs');
+  salesLogs = await api.get('/api/logs');
+
+  // Lista de produtos para o filtro: nomes que aparecem nos logs + produtos cadastrados.
+  const names = Array.from(new Set([
+    ...state.products.map(p => p.name),
+    ...salesLogs.map(l => l.productName).filter(n => n && n !== '—'),
+  ])).sort((a, b) => a.localeCompare(b));
+
+  $('#view').innerHTML = `
+    <div class="page-head"><h1>📊 Vendas &amp; Logs</h1>
+      <p>Cada compra recebida da Hotmart e o resultado do disparo no ManyChat.</p></div>
+
+    <div class="card" style="padding:16px 18px">
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
+        <div class="field" style="margin:0;flex:1;min-width:200px">
+          <label>Produto</label>
+          <select class="select" id="f-prod">
+            <option value="">📦 Todos os produtos</option>
+            ${names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field" style="margin:0;min-width:170px">
+          <label>Status</label>
+          <select class="select" id="f-status">
+            <option value="">Todos os status</option>
+            <option value="enviado">✅ Enviado</option>
+            <option value="falhou">❌ Falhou</option>
+            <option value="ignorado">⏭️ Ignorado</option>
+          </select>
+        </div>
+        <button class="btn btn-ghost" id="f-clear">Limpar</button>
+      </div>
+    </div>
+
+    <div class="card" style="padding:8px"><div id="sales-table"></div></div>`;
+
+  $('#f-prod').addEventListener('change', applySalesFilter);
+  $('#f-status').addEventListener('change', applySalesFilter);
+  $('#f-clear').onclick = () => { $('#f-prod').value = ''; $('#f-status').value = ''; applySalesFilter(); };
+  applySalesFilter();
+}
+
+function applySalesFilter() {
+  const prod = $('#f-prod').value;
+  const status = $('#f-status').value;
+  const filtered = salesLogs.filter(l => {
+    const okProd = !prod || l.productName === prod;
+    const okStatus = !status || (l.status || '').toLowerCase().includes(status);
+    return okProd && okStatus;
+  });
+  $('#sales-table').innerHTML = salesTableHTML(filtered);
+}
+
+function salesTableHTML(logs) {
+  if (!logs.length) {
+    return `<div class="empty"><div class="big">📭</div><h2>Nenhuma venda encontrada</h2>
+      <p>Ajuste os filtros acima ou aguarde novas vendas.</p></div>`;
+  }
   const rows = logs.map(l => {
     const cls = l.status?.includes('enviado') ? 'enviado' : l.status?.includes('falhou') ? 'falhou'
       : l.status?.includes('rejeitado') ? 'rejeitado' : l.status?.includes('ignorado') ? 'ignorado' : 'recebido';
@@ -216,17 +275,10 @@ async function renderSales() {
       <td><span class="status-tag status-${cls}">${esc(l.status || '')}</span>${l.error ? `<br><span style="color:var(--red);font-size:11px">${esc(l.error)}</span>` : ''}</td>
     </tr>`;
   }).join('');
-
-  $('#view').innerHTML = `
-    <div class="page-head"><h1>📊 Vendas &amp; Logs</h1>
-      <p>Cada compra recebida da Hotmart e o resultado do disparo no ManyChat.</p></div>
-    <div class="card" style="padding:8px">
-      ${logs.length ? `<table class="table">
-        <thead><tr><th>Data</th><th>Produto</th><th>Aluno</th><th>Evento</th><th>Status</th></tr></thead>
-        <tbody>${rows}</tbody></table>`
-      : `<div class="empty"><div class="big">📭</div><h2>Nenhuma venda ainda</h2>
-          <p>Quando a Hotmart enviar um webhook de compra aprovada, aparece aqui.</p></div>`}
-    </div>`;
+  return `<div style="padding:10px 14px 4px;color:var(--muted);font-size:12px;font-weight:600">${logs.length} registro(s)</div>
+    <table class="table">
+      <thead><tr><th>Data</th><th>Produto</th><th>Aluno</th><th>Evento</th><th>Status</th></tr></thead>
+      <tbody>${rows}</tbody></table>`;
 }
 
 // ====================== Tela: Configurações ======================
