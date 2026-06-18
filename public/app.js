@@ -227,7 +227,7 @@ async function renderSales() {
           </select>
         </div>
         <button class="btn btn-ghost" id="f-clear">Limpar</button>
-        <button class="btn btn-ghost" id="f-export">⬇️ Exportar CSV</button>
+        <button class="btn btn-ghost" id="f-export">⬇️ Exportar Excel</button>
       </div>
     </div>
 
@@ -236,7 +236,7 @@ async function renderSales() {
   $('#f-prod').addEventListener('change', applySalesFilter);
   $('#f-status').addEventListener('change', applySalesFilter);
   $('#f-clear').onclick = () => { $('#f-prod').value = ''; $('#f-status').value = ''; applySalesFilter(); };
-  $('#f-export').onclick = exportSalesCSV;
+  $('#f-export').onclick = exportSalesXLS;
   applySalesFilter();
 }
 
@@ -280,20 +280,26 @@ async function reprocessLog(id, btn) {
 window.deleteLog = deleteLog;
 window.reprocessLog = reprocessLog;
 
-function exportSalesCSV() {
+function exportSalesXLS() {
   const head = ['Data', 'Produto', 'Nome', 'Telefone', 'Email', 'CPF', 'Evento', 'Status', 'Erro'];
-  const rows = [head];
-  salesFiltered.forEach(l => rows.push([
-    new Date(l.at).toLocaleString('pt-BR'), logProductName(l), l.buyerName || '',
-    l.buyerPhone || '', l.buyerEmail || '', l.buyerDocument || '', l.event || '', l.status || '', l.error || '',
-  ]));
-  const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(';')).join('\n');
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const cell = (s) => `<td style="mso-number-format:'\\@'">${esc(s ?? '')}</td>`; // formato texto (preserva CPF/telefone)
+  let body = '';
+  salesFiltered.forEach(l => {
+    const cols = [
+      new Date(l.at).toLocaleString('pt-BR'), logProductName(l), l.buyerName || '',
+      l.buyerPhone || '', l.buyerEmail || '', l.buyerDocument || '', l.event || '', l.status || '', l.error || '',
+    ];
+    body += '<tr>' + cols.map(cell).join('') + '</tr>';
+  });
+  const table = `<table border="1"><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`;
+  const doc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+    <head><meta charset="utf-8"></head><body>${table}</body></html>`;
+  const blob = new Blob(['﻿' + doc], { type: 'application/vnd.ms-excel;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'vendas.csv';
+  a.download = 'vendas.xls';
   a.click();
-  toast('CSV exportado ⬇️');
+  toast('Excel exportado ⬇️');
 }
 
 function salesTableHTML(logs) {
