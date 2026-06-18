@@ -90,6 +90,35 @@ app.post('/api/settings', auth.requireAuth, async (req, res) => {
 // ----------------------- API: Logs / Vendas -----------------------
 app.get('/api/logs', auth.requireAuth, async (req, res) => res.json(await store.getLogs()));
 
+app.delete('/api/logs/:id', auth.requireAuth, async (req, res) => {
+  await store.deleteLog(req.params.id);
+  res.json({ ok: true });
+});
+
+// Reprocessa (reenvia) o disparo de um registro de venda.
+app.post('/api/logs/:id/reprocess', auth.requireAuth, async (req, res) => {
+  const log = await store.getLog(req.params.id);
+  if (!log) return res.status(404).json({ error: 'Registro não encontrado' });
+  const produto = log.productId ? await store.getProduct(log.productId) : null;
+  if (!produto) return res.status(400).json({ error: 'Registro antigo sem produto vinculado — não dá para reprocessar.' });
+  if (!log.buyerPhone) return res.status(400).json({ error: 'Registro sem telefone — não dá para reprocessar.' });
+  try {
+    const s = await store.getSettings();
+    const r = await enviarBoasVindas({
+      token: s.manychatToken,
+      countryCode: s.defaultCountryCode,
+      produto,
+      buyer: { name: log.buyerName, checkout_phone: log.buyerPhone, email: log.buyerEmail, document: log.buyerDocument },
+      cache: subscriberCache,
+    });
+    await store.updateLog(log.id, { status: 'enviado', error: '', detail: `reprocessado · subscriber ${r.subscriberId}` });
+    res.json({ ok: true });
+  } catch (e) {
+    await store.updateLog(log.id, { status: 'falhou', error: e.message });
+    res.status(400).json({ ok: false, error: e.message });
+  }
+});
+
 // ----------------------- API: Teste de envio manual -----------------------
 app.post('/api/test-send', auth.requireAuth, async (req, res) => {
   try {

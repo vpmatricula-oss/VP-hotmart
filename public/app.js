@@ -260,6 +260,26 @@ function applySalesFilter() {
   $('#sales-table').innerHTML = salesTableHTML(salesFiltered);
 }
 
+async function reloadSalesData() {
+  salesLogs = await api.get('/api/logs');
+  applySalesFilter();
+}
+async function deleteLog(id) {
+  if (!confirm('Excluir este registro de venda? (não cancela a compra, só remove da lista)')) return;
+  await api.del('/api/logs/' + id);
+  await reloadSalesData();
+  toast('Registro excluído 🗑');
+}
+async function reprocessLog(id, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+  const r = await api.post('/api/logs/' + id + '/reprocess', {});
+  if (r && r.ok) toast('Mensagem reenviada ✅');
+  else toast('Falhou: ' + (r?.error || 'erro'), true);
+  await reloadSalesData();
+}
+window.deleteLog = deleteLog;
+window.reprocessLog = reprocessLog;
+
 function exportSalesCSV() {
   const head = ['Data', 'Produto', 'Nome', 'Telefone', 'Email', 'CPF', 'Evento', 'Status', 'Erro'];
   const rows = [head];
@@ -293,11 +313,15 @@ function salesTableHTML(logs) {
       <td>${esc(l.buyerEmail || '—')}</td>
       <td style="white-space:nowrap">${esc(l.buyerDocument || '—')}</td>
       <td><span class="status-tag status-${cls}">${esc(l.status || '')}</span>${l.error ? `<br><span style="color:var(--red);font-size:11px">${esc(l.error)}</span>` : ''}</td>
+      <td style="white-space:nowrap">
+        <button onclick="reprocessLog('${l.id}', this)" title="Reenviar a mensagem" style="background:#eef0f6;border-radius:7px;padding:5px 9px;font-size:13px;margin-right:4px">🔄</button>
+        <button onclick="deleteLog('${l.id}')" title="Excluir registro" style="background:#fdecec;border-radius:7px;padding:5px 9px;font-size:13px">🗑</button>
+      </td>
     </tr>`;
   }).join('');
   return `<div style="padding:10px 14px 4px;color:var(--muted);font-size:12px;font-weight:600">${logs.length} registro(s)</div>
     <div style="overflow-x:auto"><table class="table">
-      <thead><tr><th>Data</th><th>Produto</th><th>Nome</th><th>Telefone</th><th>E-mail</th><th>CPF</th><th>Status</th></tr></thead>
+      <thead><tr><th>Data</th><th>Produto</th><th>Nome</th><th>Telefone</th><th>E-mail</th><th>CPF</th><th>Status</th><th>Ações</th></tr></thead>
       <tbody>${rows}</tbody></table></div>`;
 }
 
