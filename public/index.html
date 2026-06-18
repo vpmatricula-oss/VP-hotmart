@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel Hotmart + ManyChat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- ============ SIDEBAR ============ -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo">H</div>
+        <div>
+          <div class="brand-title">Hotmart Flow</div>
+          <div class="brand-sub">+ ManyChat</div>
+        </div>
+      </div>
+
+      <div class="nav-section-label">Produtos</div>
+      <nav id="product-tabs" class="product-tabs"></nav>
+
+      <button id="add-product" class="btn-add-product">＋ Novo produto</button>
+
+      <div class="nav-section-label" style="margin-top:18px">Geral</div>
+      <nav class="general-nav">
+        <button class="nav-item" data-view="sales"><span>📊</span> Vendas &amp; Logs</button>
+        <button class="nav-item" data-view="settings"><span>⚙️</span> Configurações</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <span id="conn-dot" class="dot dot-off"></span>
+        <span id="conn-text">Verificando…</span>
+      </div>
+    </aside>
+
+    <!-- ============ MAIN ============ -->
+    <main class="main">
+      <div id="view" class="view"></div>
+    </main>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

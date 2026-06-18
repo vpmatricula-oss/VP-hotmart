@@ -1,0 +1,17 @@
+# Dependências
+node_modules/
+
+# Dados locais (contêm seu token do ManyChat — NUNCA subir pro GitHub!)
+data/
+
+# Logs
+*.log
+server.log
+
+# Ambiente
+.env
+.env.local
+.env*.local
+
+# Vercel
+.vercel

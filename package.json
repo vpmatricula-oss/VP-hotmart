@@ -1,0 +1,12 @@
+{
+  "name": "hotmart-manychat",
+  "version": "1.0.0",
+  "description": "Painel para gerenciar produtos da Hotmart e disparar templates do ManyChat na compra aprovada",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
