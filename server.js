@@ -112,6 +112,28 @@ app.post('/api/test-send', auth.requireAuth, async (req, res) => {
   }
 });
 
+// ----------------------- API: Disparo em massa (1 destinatário por chamada) -----------------------
+app.post('/api/send-welcome', auth.requireAuth, async (req, res) => {
+  const { productId, name, phone, email, document } = req.body || {};
+  const produto = await store.getProduct(productId);
+  if (!produto) return res.status(404).json({ error: 'Produto não encontrado' });
+  try {
+    const s = await store.getSettings();
+    const r = await enviarBoasVindas({
+      token: s.manychatToken,
+      countryCode: s.defaultCountryCode,
+      produto,
+      buyer: { name, checkout_phone: phone, email, document },
+      cache: subscriberCache,
+    });
+    await store.addLog({ event: 'DISPARO_MASSA', productName: produto.name, buyerName: name || '—', buyerPhone: phone || '', buyerEmail: email || '', buyerDocument: document || '', status: 'enviado', detail: `subscriber ${r.subscriberId}` });
+    res.json({ ok: true });
+  } catch (e) {
+    await store.addLog({ event: 'DISPARO_MASSA', productName: produto.name, buyerName: name || '—', buyerPhone: phone || '', buyerEmail: email || '', buyerDocument: document || '', status: 'falhou', error: e.message });
+    res.status(400).json({ ok: false, error: e.message });
+  }
+});
+
 // ----------------------- Webhook da Hotmart -----------------------
 // Configure na Hotmart: https://SEU-DOMINIO/webhook/hotmart
 app.post('/webhook/hotmart', async (req, res) => {

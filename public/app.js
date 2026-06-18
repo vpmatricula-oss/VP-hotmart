@@ -73,6 +73,7 @@ function selectView(v) {
   if (v === 'sales') return renderSales();
   if (v === 'settings') return renderSettings();
   if (v === 'guide') return renderGuide();
+  if (v === 'bulk') return renderBulk();
   renderEmpty();
 }
 
@@ -223,6 +224,7 @@ async function renderSales() {
           </select>
         </div>
         <button class="btn btn-ghost" id="f-clear">Limpar</button>
+        <button class="btn btn-ghost" id="f-export">⬇️ Exportar CSV</button>
       </div>
     </div>
 
@@ -231,18 +233,36 @@ async function renderSales() {
   $('#f-prod').addEventListener('change', applySalesFilter);
   $('#f-status').addEventListener('change', applySalesFilter);
   $('#f-clear').onclick = () => { $('#f-prod').value = ''; $('#f-status').value = ''; applySalesFilter(); };
+  $('#f-export').onclick = exportSalesCSV;
   applySalesFilter();
 }
 
+let salesFiltered = [];
 function applySalesFilter() {
   const prod = $('#f-prod').value;
   const status = $('#f-status').value;
-  const filtered = salesLogs.filter(l => {
+  salesFiltered = salesLogs.filter(l => {
     const okProd = !prod || l.productName === prod;
     const okStatus = !status || (l.status || '').toLowerCase().includes(status);
     return okProd && okStatus;
   });
-  $('#sales-table').innerHTML = salesTableHTML(filtered);
+  $('#sales-table').innerHTML = salesTableHTML(salesFiltered);
+}
+
+function exportSalesCSV() {
+  const head = ['Data', 'Produto', 'Nome', 'Telefone', 'Email', 'CPF', 'Evento', 'Status', 'Erro'];
+  const rows = [head];
+  salesFiltered.forEach(l => rows.push([
+    new Date(l.at).toLocaleString('pt-BR'), l.productName || '', l.buyerName || '',
+    l.buyerPhone || '', l.buyerEmail || '', l.buyerDocument || '', l.event || '', l.status || '', l.error || '',
+  ]));
+  const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(';')).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'vendas.csv';
+  a.click();
+  toast('CSV exportado ⬇️');
 }
 
 function salesTableHTML(logs) {
@@ -370,6 +390,122 @@ function renderGuide() {
 
     <div class="btn-row"><span class="spacer"></span>
       <button class="btn btn-primary" onclick="addProduct()">＋ Adicionar produto agora</button></div>`;
+}
+
+// ====================== Tela: Disparo em massa (CSV) ======================
+function renderBulk() {
+  const opts = state.products.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  $('#view').innerHTML = `
+    <div class="page-head"><h1>📤 Disparo em massa</h1>
+      <p>Envie a mensagem de boas-vindas para uma lista de pessoas (ex: alunos que já compraram).</p></div>
+
+    <div class="card">
+      <h3>1) Escolha o produto</h3>
+      <p class="hint">A mensagem (Flow) desse produto será enviada para todos da lista.</p>
+      <div class="field"><label>Produto</label>
+        <select class="select" id="b-prod">${opts || '<option value="">Nenhum produto cadastrado</option>'}</select></div>
+    </div>
+
+    <div class="card">
+      <h3>2) Cole ou suba a lista</h3>
+      <p class="hint">Aceita CSV da Hotmart. Detecta as colunas <b>telefone</b>, <b>nome</b>, <b>email</b> e <b>cpf</b>.
+        Sem cabeçalho? Use a ordem: <b>telefone, nome, email, cpf</b> (1 por linha).</p>
+      <div class="field">
+        <input type="file" id="b-file" accept=".csv,.txt" style="margin-bottom:10px" />
+        <textarea class="textarea" id="b-text" placeholder="telefone;nome;email;cpf
+5511999998888;Maria Silva;maria@email.com;12345678900
+5511988887777;João Souza;joao@email.com;98765432100"></textarea>
+      </div>
+      <button class="btn btn-ghost" id="b-preview">👁️ Conferir lista</button>
+      <div id="b-info" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card" style="background:#fff7f5;border-color:#ffd9cc">
+      <h3>3) Disparar</h3>
+      <p class="hint">⚠️ Vai enviar mensagem de WhatsApp de verdade para cada pessoa da lista. Confira antes!</p>
+      <button class="btn btn-primary" id="b-send" disabled>📤 Disparar para a lista</button>
+      <div id="b-progress" style="margin-top:16px"></div>
+    </div>`;
+
+  let parsed = [];
+  const refresh = () => {
+    parsed = parseRecipients($('#b-text').value);
+    const info = $('#b-info');
+    if (!parsed.length) { info.innerHTML = `<span style="color:var(--muted);font-size:13px">Nenhum telefone válido encontrado ainda.</span>`; $('#b-send').disabled = true; return; }
+    const sample = parsed.slice(0, 5).map(r => `<tr><td>${esc(r.phone)}</td><td>${esc(r.name || '—')}</td><td>${esc(r.email || '—')}</td><td>${esc(r.document || '—')}</td></tr>`).join('');
+    info.innerHTML = `<div style="font-weight:700;margin-bottom:8px;color:var(--green)">✅ ${parsed.length} pessoa(s) na lista</div>
+      <table class="table"><thead><tr><th>Telefone</th><th>Nome</th><th>E-mail</th><th>CPF</th></tr></thead><tbody>${sample}</tbody></table>
+      ${parsed.length > 5 ? `<div class="hint" style="margin-top:6px">…e mais ${parsed.length - 5}.</div>` : ''}`;
+    $('#b-send').disabled = false;
+  };
+
+  $('#b-file').addEventListener('change', (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => { $('#b-text').value = reader.result; refresh(); };
+    reader.readAsText(f, 'utf-8');
+  });
+  $('#b-preview').onclick = refresh;
+  $('#b-send').onclick = () => runBulk($('#b-prod').value, parsed);
+}
+
+function parseRecipients(text) {
+  const lines = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (!lines.length) return [];
+  const delim = lines[0].includes(';') ? ';' : lines[0].includes('\t') ? '\t' : ',';
+  const first = lines[0].toLowerCase();
+  let header = null, start = 0;
+  if (/tel|fone|phone|whats|celular|nome|name|email|e-mail|cpf|documento/.test(first)) {
+    header = lines[0].split(delim).map(h => h.trim().toLowerCase()); start = 1;
+  }
+  const findIdx = (terms) => header ? header.findIndex(h => terms.some(t => h.includes(t))) : -1;
+  const iPhone = findIdx(['tel', 'fone', 'phone', 'whats', 'celular']);
+  const iName = findIdx(['nome', 'name', 'comprador', 'cliente']);
+  const iEmail = findIdx(['email', 'e-mail']);
+  const iCpf = findIdx(['cpf', 'documento', 'doc']);
+  const out = [];
+  for (let k = start; k < lines.length; k++) {
+    const cols = lines[k].split(delim).map(c => c.trim().replace(/^"|"$/g, ''));
+    let phone, name, email, document;
+    if (header) {
+      phone = iPhone >= 0 ? cols[iPhone] : ''; name = iName >= 0 ? cols[iName] : '';
+      email = iEmail >= 0 ? cols[iEmail] : ''; document = iCpf >= 0 ? cols[iCpf] : '';
+    } else {
+      [phone, name, email, document] = cols;
+    }
+    if ((phone || '').replace(/\D/g, '').length >= 8) {
+      out.push({ phone, name: name || '', email: email || '', document: document || '' });
+    }
+  }
+  return out;
+}
+
+async function runBulk(productId, recipients) {
+  if (!productId) return toast('Escolha um produto', true);
+  if (!recipients.length) return toast('Lista vazia', true);
+  if (!confirm(`Disparar a mensagem para ${recipients.length} pessoa(s)? Vai enviar WhatsApp de verdade.`)) return;
+  const btn = $('#b-send'); btn.disabled = true;
+  const prog = $('#b-progress');
+  let ok = 0, fail = 0;
+  const fails = [];
+  for (let i = 0; i < recipients.length; i++) {
+    const r = recipients[i];
+    prog.innerHTML = `<div style="font-weight:600">Enviando ${i + 1} de ${recipients.length}…</div>
+      <div style="height:10px;background:#eee;border-radius:6px;overflow:hidden;margin:8px 0">
+        <div style="height:100%;width:${Math.round((i / recipients.length) * 100)}%;background:linear-gradient(90deg,#f04e23,#ff7a4d)"></div></div>
+      <div style="font-size:13px;color:var(--muted)">✅ ${ok} enviados · ❌ ${fail} falhas</div>`;
+    try {
+      const res = await api.post('/api/send-welcome', { productId, name: r.name, phone: r.phone, email: r.email, document: r.document });
+      if (res && res.ok) ok++; else { fail++; fails.push(`${r.phone}: ${res?.error || 'erro'}`); }
+    } catch { fail++; fails.push(`${r.phone}: erro de conexão`); }
+  }
+  prog.innerHTML = `<div style="font-weight:700;color:var(--green);font-size:15px">🎉 Concluído!</div>
+    <div style="margin-top:6px">✅ <b>${ok}</b> enviados · ❌ <b>${fail}</b> falhas (de ${recipients.length})</div>
+    ${fails.length ? `<details style="margin-top:10px"><summary style="cursor:pointer;color:var(--muted)">Ver falhas (${fails.length})</summary>
+      <div style="font-size:12px;color:var(--red);margin-top:6px;white-space:pre-wrap">${esc(fails.join('\n'))}</div></details>` : ''}
+    <div class="hint" style="margin-top:8px">Os disparos também ficaram registrados em 📊 Vendas &amp; Logs.</div>`;
+  btn.disabled = false;
+  toast(`Disparo concluído: ${ok} enviados`);
 }
 
 // ====================== Conexão (status no rodapé) ======================
