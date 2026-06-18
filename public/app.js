@@ -74,6 +74,7 @@ function selectView(v) {
   if (v === 'settings') return renderSettings();
   if (v === 'guide') return renderGuide();
   if (v === 'bulk') return renderBulk();
+  if (v === 'livro') return renderLivro();
   renderEmpty();
 }
 
@@ -138,6 +139,17 @@ function renderProduct() {
     </div>
 
     <div class="card">
+      <h3>📕 Livro (resgate via WooCommerce)</h3>
+      <p class="hint">Usado na aba "📕 Livro": cruza quem comprou aqui com quem já resgatou o livro na loja.</p>
+      <div class="field"><label>ID do livro no WooCommerce</label>
+        <div class="desc">O ID do produto do livro na loja. Ex: <b>36519</b> (Suplementação).</div>
+        <input class="input" id="f-livro-woo" value="${esc(p.livroWooProductId || '')}" placeholder="ex: 36519" /></div>
+      <div class="field"><label>Flow ID da mensagem do livro (ManyChat)</label>
+        <div class="desc">O flow (<b>content...</b>) que será disparado no "📕 Livro". Pode ser diferente do de boas-vindas.</div>
+        <input class="input" id="f-livro-flow" value="${esc(p.livroFlowNs || '')}" placeholder="ex: content2026...." /></div>
+    </div>
+
+    <div class="card">
       <h3>Teste de envio 🧪</h3>
       <p class="hint">Dispare o template para um número agora para validar a integração.</p>
       <div class="row">
@@ -168,6 +180,8 @@ async function saveProduct(id) {
     manychatFlowNs: $('#f-flow').value.trim(),
     whatsappGroupLink: $('#f-wa').value.trim(),
     templateName: $('#f-tpl-name').value.trim(),
+    livroWooProductId: $('#f-livro-woo').value.trim(),
+    livroFlowNs: $('#f-livro-flow').value.trim(),
     active: $('#f-active').checked,
   };
   await api.put('/api/products/' + id, patch);
@@ -431,6 +445,100 @@ function renderGuide() {
 
     <div class="btn-row"><span class="spacer"></span>
       <button class="btn btn-primary" onclick="addProduct()">＋ Adicionar produto agora</button></div>`;
+}
+
+// ====================== Tela: Livro (cruzamento WooCommerce) ======================
+let livroPendentes = [];
+function renderLivro() {
+  const prods = state.products.filter(p => p.livroWooProductId);
+  const opts = prods.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  $('#view').innerHTML = `
+    <div class="page-head"><h1>📕 Livro</h1>
+      <p>Cruza quem comprou (Hotmart) com quem já resgatou o livro na loja (WooCommerce) e dispara para os pendentes.</p></div>
+
+    <div class="card">
+      <h3>1) Produto</h3>
+      <p class="hint">Só aparecem produtos com o <b>ID do livro (Woo)</b> configurado na aba do produto.</p>
+      ${prods.length ? `<div class="field"><label>Produto</label>
+        <select class="select" id="lv-prod">${opts}</select></div>
+        <button class="btn btn-primary" id="lv-go">🔎 Analisar (consultar Woo)</button>`
+      : `<div class="empty" style="padding:30px"><div class="big">⚙️</div>
+          <p>Nenhum produto com o livro configurado.<br>Vá na aba de um produto → card <b>📕 Livro</b> → preencha o <b>ID do livro no WooCommerce</b>.</p></div>`}
+      <div id="lv-status" style="margin-top:10px;font-size:13px;color:var(--muted)"></div>
+    </div>
+
+    <div id="lv-result"></div>`;
+
+  if (prods.length) $('#lv-go').onclick = analisarLivro;
+}
+
+async function analisarLivro() {
+  const productId = $('#lv-prod').value;
+  const btn = $('#lv-go'); btn.disabled = true; btn.textContent = '⏳ Consultando WooCommerce…';
+  $('#lv-result').innerHTML = '';
+  try {
+    const r = await api.get('/api/livro/cross?productId=' + encodeURIComponent(productId));
+    btn.disabled = false; btn.textContent = '🔎 Analisar (consultar Woo)';
+    if (r.error) { $('#lv-status').innerHTML = `<span style="color:var(--red)">${esc(r.error)}</span>`; return; }
+    livroPendentes = r.pendente || [];
+    $('#lv-status').innerHTML = `Compradores no painel: <b>${r.buyers}</b> · Já resgataram (Woo): <b>${r.ok.length}</b> · Pendentes: <b style="color:var(--brand)">${r.pendente.length}</b>`;
+
+    const rowsP = r.pendente.map((b, i) => `<tr>
+      <td><input type="checkbox" class="lv-chk" data-i="${i}" checked></td>
+      <td>${esc(b.name)}</td><td style="white-space:nowrap">${esc(b.phone || '—')}</td><td>${esc(b.email)}</td></tr>`).join('');
+    const rowsOk = r.ok.map(b => `<tr><td>${esc(b.name)}</td><td>${esc(b.email)}</td><td>${esc(b.woo?.coupon || '')}</td><td>${esc(b.woo?.status || '')}</td></tr>`).join('');
+
+    $('#lv-result').innerHTML = `
+      <div class="card" style="background:#fff7f5;border-color:#ffd9cc">
+        <h3>⏳ Pendentes — ainda NÃO resgataram o livro (${r.pendente.length})</h3>
+        <p class="hint">Marcados serão os que recebem o disparo do livro. ${r.hasBookFlow ? '' : '<b style="color:var(--red)">⚠️ Configure o Flow do livro na aba do produto antes de disparar.</b>'}</p>
+        ${r.pendente.length ? `<div style="overflow-x:auto"><table class="table">
+          <thead><tr><th><input type="checkbox" id="lv-all" checked></th><th>Nome</th><th>Telefone</th><th>E-mail</th></tr></thead>
+          <tbody>${rowsP}</tbody></table></div>
+          <div class="btn-row" style="margin-top:14px"><span class="spacer"></span>
+            <button class="btn btn-primary" id="lv-send" ${r.hasBookFlow ? '' : 'disabled'}>📕 Disparar livro para os selecionados</button></div>
+          <div id="lv-progress" style="margin-top:14px"></div>`
+        : `<p>🎉 Ninguém pendente — todos já resgataram!</p>`}
+      </div>
+      ${r.ok.length ? `<div class="card">
+        <h3>✅ Já resgataram (${r.ok.length})</h3>
+        <div style="overflow-x:auto"><table class="table"><thead><tr><th>Nome</th><th>E-mail</th><th>Cupom</th><th>Status</th></tr></thead>
+          <tbody>${rowsOk}</tbody></table></div></div>` : ''}`;
+
+    const all = $('#lv-all');
+    if (all) all.onchange = () => document.querySelectorAll('.lv-chk').forEach(c => { c.checked = all.checked; });
+    const send = $('#lv-send');
+    if (send) send.onclick = () => dispararLivro(productId);
+  } catch (e) {
+    btn.disabled = false; btn.textContent = '🔎 Analisar (consultar Woo)';
+    $('#lv-status').innerHTML = `<span style="color:var(--red)">Erro: ${esc(e.message)}</span>`;
+  }
+}
+
+async function dispararLivro(productId) {
+  const selected = Array.from(document.querySelectorAll('.lv-chk')).filter(c => c.checked).map(c => livroPendentes[+c.dataset.i]);
+  if (!selected.length) return toast('Selecione pelo menos 1 pessoa', true);
+  if (!confirm(`Disparar a mensagem do livro para ${selected.length} pessoa(s)? Envia WhatsApp de verdade.`)) return;
+  const send = $('#lv-send'); send.disabled = true;
+  const prog = $('#lv-progress');
+  let ok = 0, fail = 0; const fails = [];
+  for (let i = 0; i < selected.length; i++) {
+    const b = selected[i];
+    prog.innerHTML = `<div style="font-weight:600">Enviando ${i + 1} de ${selected.length}…</div>
+      <div style="height:10px;background:#eee;border-radius:6px;overflow:hidden;margin:8px 0">
+        <div style="height:100%;width:${Math.round((i / selected.length) * 100)}%;background:linear-gradient(90deg,#f04e23,#ff7a4d)"></div></div>
+      <div style="font-size:13px;color:var(--muted)">✅ ${ok} · ❌ ${fail}</div>`;
+    try {
+      const r = await api.post('/api/livro/send-one', { productId, name: b.name, phone: b.phone, email: b.email, document: b.document });
+      if (r && r.ok) ok++; else { fail++; fails.push(`${b.name} ${b.phone}: ${r?.error || 'erro'}`); }
+    } catch { fail++; fails.push(`${b.name}: erro`); }
+  }
+  prog.innerHTML = `<div style="font-weight:700;color:var(--green);font-size:15px">🎉 Concluído! ✅ ${ok} enviados · ❌ ${fail} falhas</div>
+    ${fails.length ? `<details style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted)">Ver falhas</summary>
+      <div style="font-size:12px;color:var(--red);white-space:pre-wrap;margin-top:6px">${esc(fails.join('\n'))}</div></details>` : ''}
+    <div class="hint" style="margin-top:6px">Registrado em 📊 Vendas & Logs (evento LIVRO). Clique em Analisar de novo para atualizar a lista.</div>`;
+  send.disabled = false;
+  toast(`Livro: ${ok} enviados`);
 }
 
 // ====================== Tela: Disparo em massa (CSV) ======================

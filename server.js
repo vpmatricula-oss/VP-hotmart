@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { store } from './lib/store.js';
 import { enviarBoasVindas } from './lib/manychat.js';
 import { auth } from './lib/auth.js';
+import { wooEnabled, wooPing, getBookRedeemers } from './lib/woocommerce.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, 'public');
@@ -159,6 +160,68 @@ app.post('/api/send-welcome', auth.requireAuth, async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     await store.addLog({ event: 'DISPARO_MASSA', productId: produto.id, productName: produto.name, buyerName: name || '—', buyerPhone: phone || '', buyerEmail: email || '', buyerDocument: document || '', status: 'falhou', error: e.message });
+    res.status(400).json({ ok: false, error: e.message });
+  }
+});
+
+// ----------------------- API: Livro (cruzamento WooCommerce) -----------------------
+app.get('/api/livro/status', auth.requireAuth, async (req, res) => {
+  res.json({ wooEnabled, ...(wooEnabled ? await wooPing() : {}) });
+});
+
+// Cruza compradores (Hotmart, dos logs) com quem já resgatou o livro no Woo (pedido com cupom).
+app.get('/api/livro/cross', auth.requireAuth, async (req, res) => {
+  try {
+    const produto = await store.getProduct(req.query.productId);
+    if (!produto) return res.status(404).json({ error: 'Produto não encontrado' });
+    if (!produto.livroWooProductId) return res.status(400).json({ error: 'Configure o ID do livro (Woo) na aba deste produto.' });
+    if (!wooEnabled) return res.status(400).json({ error: 'WooCommerce não está configurado no servidor.' });
+
+    // Compradores deste produto (e-mails únicos, a partir dos logs)
+    const logs = await store.getLogs();
+    const buyers = new Map();
+    for (const l of logs) {
+      if (l.productId === produto.id && l.buyerEmail) {
+        const e = l.buyerEmail.toLowerCase().trim();
+        if (!buyers.has(e)) buyers.set(e, { email: l.buyerEmail, name: l.buyerName || '—', phone: l.buyerPhone || '', document: l.buyerDocument || '' });
+      }
+    }
+
+    const redeemers = await getBookRedeemers(produto.livroWooProductId);
+    const ok = [], pendente = [];
+    for (const [email, info] of buyers) {
+      if (redeemers.has(email)) ok.push({ ...info, woo: redeemers.get(email) });
+      else pendente.push(info);
+    }
+    res.json({
+      produto: produto.name,
+      hasBookFlow: !!produto.livroFlowNs,
+      buyers: buyers.size,
+      redeemersTotal: redeemers.size,
+      ok, pendente,
+    });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Dispara a mensagem do livro para UM destinatário (frontend faz o loop, evita timeout).
+app.post('/api/livro/send-one', auth.requireAuth, async (req, res) => {
+  const { productId, name, phone, email, document } = req.body || {};
+  const produto = await store.getProduct(productId);
+  if (!produto) return res.status(404).json({ error: 'Produto não encontrado' });
+  if (!produto.livroFlowNs) return res.status(400).json({ error: 'Configure o Flow do livro (ManyChat) na aba deste produto.' });
+  try {
+    const s = await store.getSettings();
+    const r = await enviarBoasVindas({
+      token: s.manychatToken, countryCode: s.defaultCountryCode, produto,
+      buyer: { name, checkout_phone: phone, email, document }, cache: subscriberCache,
+      flowNs: produto.livroFlowNs,
+    });
+    await store.addLog({ event: 'LIVRO', productId: produto.id, productName: produto.name, buyerName: name || '—', buyerPhone: phone || '', buyerEmail: email || '', buyerDocument: document || '', status: 'enviado', detail: `livro · subscriber ${r.subscriberId}` });
+    res.json({ ok: true });
+  } catch (e) {
+    await store.addLog({ event: 'LIVRO', productId: produto.id, productName: produto.name, buyerName: name || '—', buyerPhone: phone || '', buyerEmail: email || '', buyerDocument: document || '', status: 'falhou', error: e.message });
     res.status(400).json({ ok: false, error: e.message });
   }
 });
