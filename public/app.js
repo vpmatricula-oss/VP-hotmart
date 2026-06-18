@@ -552,12 +552,8 @@ function renderLivro() {
     ${prods.length ? `<div class="card">
       <h3>🧪 Testar a mensagem do livro</h3>
       <p class="hint">Dispara o flow do livro para um número seu, só pra validar a mensagem (não mexe na lista de pendentes).</p>
-      <div class="row">
-        <div class="field"><label>Telefone (com DDD)</label><input class="input" id="lv-test-phone" placeholder="ex: 5511999998888" /></div>
-        <div class="field"><label>Nome (como está no ManyChat)</label>
-          <div class="desc">Ajuda a achar contatos que já existem. Ex: Eliane Silva</div>
-          <input class="input" id="lv-test-name" placeholder="ex: Eliane Silva" /></div>
-      </div>
+      <div class="field" style="max-width:340px"><label>Telefone (com DDD)</label>
+        <input class="input" id="lv-test-phone" placeholder="ex: 5511999998888" /></div>
       <button class="btn btn-ghost" id="lv-test-btn">📤 Enviar teste do livro</button>
     </div>` : ''}
 
@@ -574,8 +570,7 @@ async function testarLivro() {
   const phone = $('#lv-test-phone').value.trim();
   if (!phone) return toast('Informe um telefone', true);
   const btn = $('#lv-test-btn'); btn.disabled = true; btn.textContent = 'Enviando…';
-  const nome = $('#lv-test-name').value.trim() || 'Teste Livro';
-  const r = await api.post('/api/livro/send-one', { productId, name: nome, phone });
+  const r = await api.post('/api/livro/send-one', { productId, name: 'Teste', phone });
   btn.disabled = false; btn.textContent = '📤 Enviar teste do livro';
   r && r.ok ? toast('Teste do livro enviado ✅') : toast('Erro: ' + (r?.error || 'falhou'), true);
 }
