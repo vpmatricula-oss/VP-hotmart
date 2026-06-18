@@ -11,6 +11,12 @@ const PUBLIC = path.join(__dirname, 'public');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Cache de contatos do ManyChat (telefone -> subscriber_id), guardado no nosso banco.
+const subscriberCache = {
+  get: (phone) => store.getSubscriber(phone),
+  set: (phone, id) => store.saveSubscriber(phone, id),
+};
+
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -96,6 +102,7 @@ app.post('/api/test-send', auth.requireAuth, async (req, res) => {
       countryCode: s.defaultCountryCode,
       produto,
       buyer: { name: name || 'Teste', checkout_phone: phone },
+      cache: subscriberCache,
     });
     await store.addLog({ event: 'TESTE_MANUAL', productName: produto.name, buyerName: name || 'Teste', buyerPhone: phone, status: 'enviado', detail: `subscriber ${r.subscriberId}` });
     res.json({ ok: true, ...r });
@@ -159,6 +166,7 @@ app.post('/webhook/hotmart', async (req, res) => {
       countryCode: settings.defaultCountryCode,
       produto,
       buyer,
+      cache: subscriberCache,
     });
     log.status = 'enviado';
     log.detail = `ManyChat subscriber ${r.subscriberId}`;
