@@ -94,7 +94,6 @@ function renderEmpty() {
 function renderProduct() {
   const p = state.products.find(x => x.id === state.current);
   if (!p) return renderEmpty();
-  const tpl = p.welcomeTemplate || 'Olá! 🎉 Sua compra foi aprovada. Seja muito bem-vindo(a)!';
   $('#view').innerHTML = `
     <div class="page-head">
       <h1><span class="swatch" style="width:16px;height:16px;border-radius:5px;background:${p.color}"></span>
@@ -122,24 +121,15 @@ function renderProduct() {
     <div class="card">
       <h3>Template do ManyChat 🤖</h3>
       <p class="hint">Quando a compra for aprovada, o sistema dispara este flow/template aprovado para o aluno.</p>
+      <div class="field"><label>Nome do modelo (referência)</label>
+        <div class="desc">Só pra você se localizar depois — o nome do template no ManyChat. Ex: <b>Marcio 18.06</b></div>
+        <input class="input" id="f-tpl-name" value="${esc(p.templateName || '')}" placeholder="ex: Marcio 18.06" /></div>
       <div class="field"><label>Flow ID do ManyChat (flow_ns)</label>
         <div class="desc">No ManyChat: Automation → seu Flow → ⋯ → Get Flow API Trigger (começa com <b>content...</b>)</div>
         <input class="input" id="f-flow" value="${esc(p.manychatFlowNs)}" placeholder="ex: content20240101000000_123456" /></div>
       <div class="field"><label>Link do grupo de WhatsApp</label>
         <div class="desc">Disponível no template como <b>{{whatsapp_link}}</b></div>
         <input class="input" id="f-wa" value="${esc(p.whatsappGroupLink)}" placeholder="https://chat.whatsapp.com/..." /></div>
-    </div>
-
-    <div class="card">
-      <h3>Pré-visualização da mensagem 💬</h3>
-      <p class="hint">Texto de referência (o conteúdo real fica no flow do ManyChat). Use para alinhar a copy.</p>
-      <div class="field"><label>Mensagem de boas-vindas</label>
-        <textarea class="textarea" id="f-tpl" placeholder="Escreva aqui a mensagem...">${esc(p.welcomeTemplate)}</textarea></div>
-      <label style="font-weight:600;font-size:13px;margin-bottom:8px;display:block">Como o aluno verá:</label>
-      <div class="wa-preview">
-        <div class="wa-bubble" id="wa-out">${esc(tpl)}<div class="wa-time">agora ✓✓</div></div>
-        ${p.whatsappGroupLink ? `<div class="wa-btn">🔗 Entrar no grupo</div>` : ''}
-      </div>
     </div>
 
     <div class="card">
@@ -160,9 +150,6 @@ function renderProduct() {
       <button class="btn btn-primary" id="btn-save">💾 Salvar</button>
     </div>`;
 
-  $('#f-tpl').addEventListener('input', e => {
-    $('#wa-out').innerHTML = esc(e.target.value || ' ') + '<div class="wa-time">agora ✓✓</div>';
-  });
   $('#btn-save').onclick = () => saveProduct(p.id);
   $('#btn-del').onclick = () => delProduct(p.id);
   $('#btn-test').onclick = () => testSend(p.id);
@@ -175,7 +162,7 @@ async function saveProduct(id) {
     color: $('#f-color').value,
     manychatFlowNs: $('#f-flow').value.trim(),
     whatsappGroupLink: $('#f-wa').value.trim(),
-    welcomeTemplate: $('#f-tpl').value,
+    templateName: $('#f-tpl-name').value.trim(),
     active: $('#f-active').checked,
   };
   await api.put('/api/products/' + id, patch);
