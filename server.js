@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { store } from './lib/store.js';
 import { enviarBoasVindas } from './lib/manychat.js';
 import { auth } from './lib/auth.js';
-import { wooEnabled, wooPing, getRedemptionForEmails } from './lib/woocommerce.js';
+import { wooEnabled, wooPing, getRedemptionForEmails, getCouponOrders } from './lib/woocommerce.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, 'public');
@@ -205,6 +205,38 @@ app.get('/api/livro/cross', auth.requireAuth, async (req, res) => {
       desde: produto.livroDesde || '(todas)',
       buyers: buyers.size,
       ok, pendente,
+    });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Detecta VAZAMENTO do cupom: quem usou o cupom no Woo mas NÃO está na lista de compradores.
+app.get('/api/livro/vazamento', auth.requireAuth, async (req, res) => {
+  try {
+    const produto = await store.getProduct(req.query.productId);
+    if (!produto) return res.status(404).json({ error: 'Produto não encontrado' });
+    if (!produto.livroWooProductId) return res.status(400).json({ error: 'Configure o ID do livro (Woo).' });
+    if (!produto.livroCoupon) return res.status(400).json({ error: 'Configure o cupom do resgate na aba do produto pra monitorar vazamento.' });
+    if (!wooEnabled) return res.status(400).json({ error: 'WooCommerce não configurado.' });
+
+    const cutoff = produto.livroDesde ? new Date(produto.livroDesde + 'T00:00:00').toISOString() : null;
+    // Lista de compradores legítimos (Hotmart, dos logs)
+    const logs = await store.getLogs();
+    const buyers = new Set();
+    for (const l of logs) {
+      if (l.productId !== produto.id || !l.buyerEmail) continue;
+      if (cutoff && l.at < cutoff) continue;
+      buyers.add(l.buyerEmail.toLowerCase().trim());
+    }
+    // Quem usou o cupom no Woo
+    const couponOrders = await getCouponOrders(produto.livroWooProductId, produto.livroCoupon, cutoff);
+    const vazamento = couponOrders.filter(o => !buyers.has(o.email));
+    res.json({
+      coupon: produto.livroCoupon,
+      totalUsos: couponOrders.length,
+      legitimos: couponOrders.length - vazamento.length,
+      vazamento,
     });
   } catch (e) {
     res.status(400).json({ error: e.message });

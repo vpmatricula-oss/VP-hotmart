@@ -546,7 +546,8 @@ async function analisarLivro() {
       ${r.ok.length ? `<div class="card">
         <h3>✅ Já resgataram (${r.ok.length})</h3>
         <div style="overflow-x:auto"><table class="table"><thead><tr><th>Nome</th><th>E-mail</th><th>Cupom</th><th>Status</th></tr></thead>
-          <tbody>${rowsOk}</tbody></table></div></div>` : ''}`;
+          <tbody>${rowsOk}</tbody></table></div></div>` : ''}
+      <div id="lv-vazamento"><div class="card"><span style="color:var(--muted);font-size:13px">🕵️ Verificando vazamento do cupom…</span></div></div>`;
 
     const updateBtn = () => {
       const n = document.querySelectorAll('.lv-chk:checked').length;
@@ -558,9 +559,38 @@ async function analisarLivro() {
     document.querySelectorAll('.lv-chk').forEach(c => c.addEventListener('change', updateBtn));
     const send = $('#lv-send');
     if (send) send.onclick = () => dispararLivro(productId);
+    carregarVazamento(productId); // verifica vazamento do cupom em paralelo
   } catch (e) {
     btn.disabled = false; btn.textContent = '🔎 Analisar (consultar Woo)';
     $('#lv-status').innerHTML = `<span style="color:var(--red)">Erro: ${esc(e.message)}</span>`;
+  }
+}
+
+async function carregarVazamento(productId) {
+  const box = $('#lv-vazamento');
+  if (!box) return;
+  try {
+    const r = await api.get('/api/livro/vazamento?productId=' + encodeURIComponent(productId));
+    if (r.error) { box.innerHTML = `<div class="card"><span class="hint" style="color:var(--red)">Vazamento: ${esc(r.error)}</span></div>`; return; }
+    if (!r.vazamento.length) {
+      box.innerHTML = `<div class="card" style="background:#e6f8f0;border-color:#b8e8d2">
+        <h3>🔒 Cupom <b>${esc(r.coupon)}</b> — sem vazamento</h3>
+        <p class="hint" style="margin:0">Usos do cupom: <b>${r.totalUsos}</b> · todos são compradores da lista ✅. Nenhum uso indevido detectado.</p></div>`;
+      return;
+    }
+    const rows = r.vazamento.map(v => `<tr>
+      <td>${esc(v.name)}</td><td>${esc(v.email)}</td>
+      <td style="white-space:nowrap">${v.date ? new Date(v.date).toLocaleString('pt-BR') : '—'}</td>
+      <td>${esc(v.status)}</td><td>#${esc(v.orderId)}</td></tr>`).join('');
+    box.innerHTML = `<div class="card" style="background:#fdecec;border-color:#f5b7b7">
+      <h3>🚨 Possível VAZAMENTO do cupom <b>${esc(r.coupon)}</b> — ${r.vazamento.length} pessoa(s)</h3>
+      <p class="hint">Usaram o cupom no Woo mas <b>NÃO estão</b> na lista de compradores (Hotmart). Vale investigar:</p>
+      <div style="overflow-x:auto"><table class="table">
+        <thead><tr><th>Nome</th><th>E-mail</th><th>Data</th><th>Status</th><th>Pedido</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+      <p class="hint" style="margin-top:8px">Usos totais do cupom: ${r.totalUsos} · na lista: ${r.legitimos} · fora da lista: <b style="color:var(--red)">${r.vazamento.length}</b></p></div>`;
+  } catch (e) {
+    box.innerHTML = `<div class="card"><span class="hint">Não foi possível verificar vazamento agora.</span></div>`;
   }
 }
 
