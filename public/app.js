@@ -122,6 +122,10 @@ function renderProduct() {
     <div class="card">
       <h3>Template do ManyChat 🤖</h3>
       <p class="hint">Quando a compra for aprovada, o sistema dispara este flow/template aprovado para o aluno.</p>
+      <div style="background:#fff7e6;border:1px solid #ffe2b8;border-radius:10px;padding:11px 13px;font-size:13px;color:#8a6d3b;margin-bottom:16px;line-height:1.5">
+        💬 <b>A mensagem que o aluno recebe fica no ManyChat.</b><br>
+        Para alterar o texto, edite o <b>template/flow dentro do ManyChat</b>. Os campos abaixo são só a ligação/configuração.
+      </div>
       <div class="field"><label>Nome do modelo (referência)</label>
         <div class="desc">Só pra você se localizar depois — o nome do template no ManyChat. Ex: <b>Marcio 18.06</b></div>
         <input class="input" id="f-tpl-name" value="${esc(p.templateName || '')}" placeholder="ex: Marcio 18.06" /></div>
