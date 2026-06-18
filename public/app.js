@@ -477,9 +477,31 @@ function renderLivro() {
       <div id="lv-status" style="margin-top:10px;font-size:13px;color:var(--muted)"></div>
     </div>
 
+    ${prods.length ? `<div class="card">
+      <h3>🧪 Testar a mensagem do livro</h3>
+      <p class="hint">Dispara o flow do livro para um número seu, só pra validar a mensagem (não mexe na lista de pendentes).</p>
+      <div class="row">
+        <div class="field"><label>Telefone (com DDD)</label><input class="input" id="lv-test-phone" placeholder="ex: 5511999998888" /></div>
+        <div class="field" style="display:flex;align-items:flex-end"><button class="btn btn-ghost" id="lv-test-btn">📤 Enviar teste do livro</button></div>
+      </div>
+    </div>` : ''}
+
     <div id="lv-result"></div>`;
 
-  if (prods.length) $('#lv-go').onclick = analisarLivro;
+  if (prods.length) {
+    $('#lv-go').onclick = analisarLivro;
+    $('#lv-test-btn').onclick = testarLivro;
+  }
+}
+
+async function testarLivro() {
+  const productId = $('#lv-prod').value;
+  const phone = $('#lv-test-phone').value.trim();
+  if (!phone) return toast('Informe um telefone', true);
+  const btn = $('#lv-test-btn'); btn.disabled = true; btn.textContent = 'Enviando…';
+  const r = await api.post('/api/livro/send-one', { productId, name: 'Teste Livro', phone });
+  btn.disabled = false; btn.textContent = '📤 Enviar teste do livro';
+  r && r.ok ? toast('Teste do livro enviado ✅') : toast('Erro: ' + (r?.error || 'falhou'), true);
 }
 
 async function analisarLivro() {
