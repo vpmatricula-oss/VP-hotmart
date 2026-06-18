@@ -502,13 +502,20 @@ async function analisarLivro() {
     $('#lv-result').innerHTML = `
       <div class="card" style="background:#fff7f5;border-color:#ffd9cc">
         <h3>⏳ Pendentes — ainda NÃO resgataram o livro (${r.pendente.length})</h3>
-        <p class="hint">Marcados serão os que recebem o disparo do livro. ${r.hasBookFlow ? '' : '<b style="color:var(--red)">⚠️ Configure o Flow do livro na aba do produto antes de disparar.</b>'}</p>
-        ${r.pendente.length ? `<div style="overflow-x:auto"><table class="table">
+        <div style="background:#e6f8f0;border:1px solid #b8e8d2;border-radius:10px;padding:10px 12px;font-size:13px;color:#0b7a4f;margin-bottom:14px">
+          ✅ <b>Sem duplicar:</b> a lista foi verificada agora no WooCommerce. O envio vai <b>só</b> para quem ainda não resgatou — quem já pegou o livro <b>não</b> recebe.
+        </div>
+        ${r.hasBookFlow ? '' : '<p class="hint" style="color:var(--red)"><b>⚠️ Configure o Flow do livro na aba do produto antes de enviar.</b></p>'}
+        ${r.pendente.length ? `
+          <div class="btn-row" style="margin-bottom:14px">
+            <button class="btn btn-primary" id="lv-send" ${r.hasBookFlow ? '' : 'disabled'} style="font-size:15px;padding:13px 22px">📕 Enviar para os ${r.pendente.length} pendentes</button>
+            <span class="spacer"></span>
+            <span style="font-size:12px;color:var(--muted)">desmarque alguém abaixo se quiser pular</span>
+          </div>
+          <div id="lv-progress" style="margin-bottom:14px"></div>
+          <div style="overflow-x:auto"><table class="table">
           <thead><tr><th><input type="checkbox" id="lv-all" checked></th><th>Nome</th><th>Telefone</th><th>E-mail</th></tr></thead>
-          <tbody>${rowsP}</tbody></table></div>
-          <div class="btn-row" style="margin-top:14px"><span class="spacer"></span>
-            <button class="btn btn-primary" id="lv-send" ${r.hasBookFlow ? '' : 'disabled'}>📕 Disparar livro para os selecionados</button></div>
-          <div id="lv-progress" style="margin-top:14px"></div>`
+          <tbody>${rowsP}</tbody></table></div>`
         : `<p>🎉 Ninguém pendente — todos já resgataram!</p>`}
       </div>
       ${r.ok.length ? `<div class="card">
@@ -516,8 +523,14 @@ async function analisarLivro() {
         <div style="overflow-x:auto"><table class="table"><thead><tr><th>Nome</th><th>E-mail</th><th>Cupom</th><th>Status</th></tr></thead>
           <tbody>${rowsOk}</tbody></table></div></div>` : ''}`;
 
+    const updateBtn = () => {
+      const n = document.querySelectorAll('.lv-chk:checked').length;
+      const send = $('#lv-send');
+      if (send) { send.textContent = `📕 Enviar para os ${n} pendentes`; send.disabled = !r.hasBookFlow || n === 0; }
+    };
     const all = $('#lv-all');
-    if (all) all.onchange = () => document.querySelectorAll('.lv-chk').forEach(c => { c.checked = all.checked; });
+    if (all) all.onchange = () => { document.querySelectorAll('.lv-chk').forEach(c => { c.checked = all.checked; }); updateBtn(); };
+    document.querySelectorAll('.lv-chk').forEach(c => c.addEventListener('change', updateBtn));
     const send = $('#lv-send');
     if (send) send.onclick = () => dispararLivro(productId);
   } catch (e) {
