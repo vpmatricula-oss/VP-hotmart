@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Entrar · Painel Hotmart + ManyChat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    body { display: grid; place-items: center; min-height: 100vh;
+      background: linear-gradient(135deg, #f04e23 0%, #ff7a4d 100%); }
+    .login-card { width: 380px; max-width: 92vw; background: #fff; border-radius: 20px;
+      padding: 38px 34px; box-shadow: 0 30px 80px rgba(0,0,0,.25); animation: fade .3s ease; }
+    .login-logo { width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 18px;
+      background: linear-gradient(135deg, #f04e23, #ff7a4d); color: #fff; font-weight: 800;
+      font-size: 28px; display: grid; place-items: center; box-shadow: 0 10px 24px rgba(240,78,35,.4); }
+    .login-card h1 { text-align: center; font-size: 21px; }
+    .login-card .sub { text-align: center; color: var(--muted); font-size: 13px; margin: 6px 0 26px; }
+    .err-box { background: #fdecec; color: #c0392b; font-size: 13px; font-weight: 500;
+      padding: 10px 14px; border-radius: 10px; margin-bottom: 16px; display: none; }
+    .err-box.show { display: block; }
+    .btn-login { width: 100%; justify-content: center; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <form class="login-card" id="login-form">
+    <div class="login-logo">H</div>
+    <h1>Painel Hotmart + ManyChat</h1>
+    <div class="sub">Entre para gerenciar seus produtos</div>
+
+    <div class="err-box" id="err"></div>
+
+    <div class="field">
+      <label>E-mail</label>
+      <input class="input" type="email" id="email" placeholder="seu@email.com" autocomplete="username" required />
+    </div>
+    <div class="field">
+      <label>Senha</label>
+      <input class="input" type="password" id="password" placeholder="••••••••" autocomplete="current-password" required />
+    </div>
+    <button class="btn btn-primary btn-login" type="submit" id="btn">Entrar 🔓</button>
+  </form>
+
+  <script>
+    const form = document.getElementById('login-form');
+    const err = document.getElementById('err');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('btn');
+      btn.disabled = true; btn.textContent = 'Entrando…'; err.className = 'err-box';
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: document.getElementById('email').value,
+            password: document.getElementById('password').value,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok && data.ok) { window.location = '/'; return; }
+        err.textContent = data.error || 'Falha no login'; err.className = 'err-box show';
+      } catch {
+        err.textContent = 'Erro de conexão'; err.className = 'err-box show';
+      }
+      btn.disabled = false; btn.textContent = 'Entrar 🔓';
+    });
+  </script>
+</body>
+</html>

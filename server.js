@@ -1,35 +1,65 @@
+import './lib/load-env.js'; // PRECISA ser o primeiro import (carrega o .env antes de tudo)
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { store } from './lib/store.js';
 import { enviarBoasVindas } from './lib/manychat.js';
+import { auth } from './lib/auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PUBLIC = path.join(__dirname, 'public');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+
+// Arquivos estáticos (css/js), MENOS o index.html — a home é protegida abaixo.
+app.use(express.static(PUBLIC, { index: false }));
+
+// ----------------------- Autenticação -----------------------
+app.get('/login', (req, res) => {
+  if (auth.isLogged(req)) return res.redirect('/');
+  res.sendFile(path.join(PUBLIC, 'login.html'));
+});
+
+app.post('/api/login', (req, res) => {
+  const { email, password } = req.body || {};
+  if (auth.checkCredentials(email, password)) {
+    res.setHeader('Set-Cookie', auth.makeCookie());
+    return res.json({ ok: true });
+  }
+  res.status(401).json({ error: 'E-mail ou senha inválidos' });
+});
+
+app.post('/api/logout', (req, res) => {
+  res.setHeader('Set-Cookie', auth.clearCookie());
+  res.json({ ok: true });
+});
+
+app.get('/api/me', (req, res) => res.json({ logged: auth.isLogged(req), authEnabled: auth.enabled }));
+
+// Home (painel) — protegida por login.
+app.get('/', auth.requireAuth, (req, res) => res.sendFile(path.join(PUBLIC, 'index.html')));
 
 // ----------------------- API: Produtos -----------------------
-app.get('/api/products', async (req, res) => res.json(await store.getProducts()));
+app.get('/api/products', auth.requireAuth, async (req, res) => res.json(await store.getProducts()));
 
-app.post('/api/products', async (req, res) => res.json(await store.addProduct(req.body)));
+app.post('/api/products', auth.requireAuth, async (req, res) => res.json(await store.addProduct(req.body)));
 
-app.put('/api/products/:id', async (req, res) => {
+app.put('/api/products/:id', auth.requireAuth, async (req, res) => {
   const p = await store.updateProduct(req.params.id, req.body);
   if (!p) return res.status(404).json({ error: 'Produto não encontrado' });
   res.json(p);
 });
 
-app.delete('/api/products/:id', async (req, res) => {
+app.delete('/api/products/:id', auth.requireAuth, async (req, res) => {
   await store.deleteProduct(req.params.id);
   res.json({ ok: true });
 });
 
 // ----------------------- API: Configurações -----------------------
-app.get('/api/settings', async (req, res) => {
+app.get('/api/settings', auth.requireAuth, async (req, res) => {
   const s = await store.getSettings();
   res.json({
     hasManychatToken: !!s.manychatToken,
@@ -40,7 +70,7 @@ app.get('/api/settings', async (req, res) => {
   });
 });
 
-app.post('/api/settings', async (req, res) => {
+app.post('/api/settings', auth.requireAuth, async (req, res) => {
   const patch = {};
   if (typeof req.body.manychatToken === 'string' && req.body.manychatToken.trim()) {
     patch.manychatToken = req.body.manychatToken.trim();
@@ -52,10 +82,10 @@ app.post('/api/settings', async (req, res) => {
 });
 
 // ----------------------- API: Logs / Vendas -----------------------
-app.get('/api/logs', async (req, res) => res.json(await store.getLogs()));
+app.get('/api/logs', auth.requireAuth, async (req, res) => res.json(await store.getLogs()));
 
 // ----------------------- API: Teste de envio manual -----------------------
-app.post('/api/test-send', async (req, res) => {
+app.post('/api/test-send', auth.requireAuth, async (req, res) => {
   try {
     const { productId, phone, name } = req.body;
     const produto = await store.getProduct(productId);

@@ -1,12 +1,21 @@
 // ====================== Estado & helpers ======================
 const state = { products: [], current: null, view: 'product' };
 const $ = (s, el = document) => el.querySelector(s);
+async function handle(res) {
+  if (res.status === 401) { window.location = '/login'; throw new Error('401'); }
+  return res.json();
+}
 const api = {
-  get: (u) => fetch(u).then(r => r.json()),
-  post: (u, b) => fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then(r => r.json()),
-  put: (u, b) => fetch(u, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then(r => r.json()),
-  del: (u) => fetch(u, { method: 'DELETE' }).then(r => r.json()),
+  get: (u) => fetch(u).then(handle),
+  post: (u, b) => fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then(handle),
+  put: (u, b) => fetch(u, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).then(handle),
+  del: (u) => fetch(u, { method: 'DELETE' }).then(handle),
 };
+async function logout() {
+  await fetch('/api/logout', { method: 'POST' });
+  window.location = '/login';
+}
+window.logout = logout;
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 function toast(msg, isErr = false) {
