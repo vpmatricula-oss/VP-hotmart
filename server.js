@@ -104,7 +104,7 @@ app.post('/api/test-send', auth.requireAuth, async (req, res) => {
       buyer: { name: name || 'Teste', checkout_phone: phone },
       cache: subscriberCache,
     });
-    await store.addLog({ event: 'TESTE_MANUAL', productName: produto.name, buyerName: name || 'Teste', buyerPhone: phone, status: 'enviado', detail: `subscriber ${r.subscriberId}` });
+    await store.addLog({ event: 'TESTE_MANUAL', productId: produto.id, productName: produto.name, buyerName: name || 'Teste', buyerPhone: phone, status: 'enviado', detail: `subscriber ${r.subscriberId}` });
     res.json({ ok: true, ...r });
   } catch (e) {
     await store.addLog({ event: 'TESTE_MANUAL', status: 'falhou', error: e.message });
@@ -126,10 +126,10 @@ app.post('/api/send-welcome', auth.requireAuth, async (req, res) => {
       buyer: { name, checkout_phone: phone, email, document },
       cache: subscriberCache,
     });
-    await store.addLog({ event: 'DISPARO_MASSA', productName: produto.name, buyerName: name || '—', buyerPhone: phone || '', buyerEmail: email || '', buyerDocument: document || '', status: 'enviado', detail: `subscriber ${r.subscriberId}` });
+    await store.addLog({ event: 'DISPARO_MASSA', productId: produto.id, productName: produto.name, buyerName: name || '—', buyerPhone: phone || '', buyerEmail: email || '', buyerDocument: document || '', status: 'enviado', detail: `subscriber ${r.subscriberId}` });
     res.json({ ok: true });
   } catch (e) {
-    await store.addLog({ event: 'DISPARO_MASSA', productName: produto.name, buyerName: name || '—', buyerPhone: phone || '', buyerEmail: email || '', buyerDocument: document || '', status: 'falhou', error: e.message });
+    await store.addLog({ event: 'DISPARO_MASSA', productId: produto.id, productName: produto.name, buyerName: name || '—', buyerPhone: phone || '', buyerEmail: email || '', buyerDocument: document || '', status: 'falhou', error: e.message });
     res.status(400).json({ ok: false, error: e.message });
   }
 });
@@ -167,7 +167,8 @@ app.post('/webhook/hotmart', async (req, res) => {
 
   const log = {
     event: event || 'desconhecido',
-    productName: produto?.name || product.name || '—', // usa o nome do painel (reflete renomeações)
+    productId: produto?.id || '', // ID fixo (não muda em renomeações) -> usado no filtro
+    productName: produto?.name || product.name || '—', // nome no momento da venda
     buyerName: buyer.name || '—',
     buyerEmail: buyer.email || '',
     buyerPhone: buyer.checkout_phone || buyer.phone || '',

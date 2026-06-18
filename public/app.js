@@ -195,11 +195,10 @@ let salesLogs = [];
 async function renderSales() {
   salesLogs = await api.get('/api/logs');
 
-  // Lista de produtos para o filtro: nomes que aparecem nos logs + produtos cadastrados.
-  const names = Array.from(new Set([
-    ...state.products.map(p => p.name),
-    ...salesLogs.map(l => l.productName).filter(n => n && n !== '—'),
-  ])).sort((a, b) => a.localeCompare(b));
+  // Filtro lista APENAS os produtos que existem hoje (value = ID fixo, label = nome atual).
+  const opts = [...state.products]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
 
   $('#view').innerHTML = `
     <div class="page-head"><h1>📊 Vendas &amp; Logs</h1>
@@ -211,7 +210,7 @@ async function renderSales() {
           <label>Produto</label>
           <select class="select" id="f-prod">
             <option value="">📦 Todos os produtos</option>
-            ${names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('')}
+            ${opts}
           </select>
         </div>
         <div class="field" style="margin:0;min-width:170px">
@@ -238,11 +237,19 @@ async function renderSales() {
 }
 
 let salesFiltered = [];
+// Nome atual do produto de um log (resolve pelo ID fixo; respeita renomeações).
+function logProductName(l) {
+  if (l.productId) {
+    const p = state.products.find(x => x.id === l.productId);
+    if (p) return p.name;
+  }
+  return l.productName || '—';
+}
 function applySalesFilter() {
-  const prod = $('#f-prod').value;
+  const prod = $('#f-prod').value; // id do produto
   const status = $('#f-status').value;
   salesFiltered = salesLogs.filter(l => {
-    const okProd = !prod || l.productName === prod;
+    const okProd = !prod || l.productId === prod;
     const okStatus = !status || (l.status || '').toLowerCase().includes(status);
     return okProd && okStatus;
   });
@@ -253,7 +260,7 @@ function exportSalesCSV() {
   const head = ['Data', 'Produto', 'Nome', 'Telefone', 'Email', 'CPF', 'Evento', 'Status', 'Erro'];
   const rows = [head];
   salesFiltered.forEach(l => rows.push([
-    new Date(l.at).toLocaleString('pt-BR'), l.productName || '', l.buyerName || '',
+    new Date(l.at).toLocaleString('pt-BR'), logProductName(l), l.buyerName || '',
     l.buyerPhone || '', l.buyerEmail || '', l.buyerDocument || '', l.event || '', l.status || '', l.error || '',
   ]));
   const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(';')).join('\n');
@@ -276,7 +283,7 @@ function salesTableHTML(logs) {
     const when = new Date(l.at).toLocaleString('pt-BR');
     return `<tr>
       <td style="white-space:nowrap">${when}</td>
-      <td><b>${esc(l.productName || '—')}</b></td>
+      <td><b>${esc(logProductName(l))}</b></td>
       <td>${esc(l.buyerName || '—')}</td>
       <td style="white-space:nowrap">${esc(l.buyerPhone || '—')}</td>
       <td>${esc(l.buyerEmail || '—')}</td>
