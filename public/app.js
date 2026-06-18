@@ -250,7 +250,8 @@ async function renderSales() {
           </select>
         </div>
         <button class="btn btn-ghost" id="f-clear">Limpar</button>
-        <button class="btn btn-ghost" id="f-export">⬇️ Exportar Excel</button>
+        <button class="btn btn-ghost" id="f-export-xls">⬇️ Excel</button>
+        <button class="btn btn-ghost" id="f-export-csv">⬇️ CSV</button>
       </div>
     </div>
 
@@ -259,7 +260,8 @@ async function renderSales() {
   $('#f-prod').addEventListener('change', applySalesFilter);
   $('#f-status').addEventListener('change', applySalesFilter);
   $('#f-clear').onclick = () => { $('#f-prod').value = ''; $('#f-status').value = ''; applySalesFilter(); };
-  $('#f-export').onclick = exportSalesXLS;
+  $('#f-export-xls').onclick = exportSalesXLS;
+  $('#f-export-csv').onclick = exportSalesCSV;
   applySalesFilter();
 }
 
@@ -272,6 +274,9 @@ function logProductName(l) {
   }
   return l.productName || '—';
 }
+let salesPage = 1;
+const SALES_PER_PAGE = 15;
+
 function applySalesFilter() {
   const prod = $('#f-prod').value; // id do produto
   const status = $('#f-status').value;
@@ -280,8 +285,12 @@ function applySalesFilter() {
     const okStatus = !status || (l.status || '').toLowerCase().includes(status);
     return okProd && okStatus;
   });
-  $('#sales-table').innerHTML = salesTableHTML(salesFiltered);
+  salesPage = 1;
+  renderSalesTable();
 }
+
+function gotoSalesPage(p) { salesPage = p; renderSalesTable(); }
+window.gotoSalesPage = gotoSalesPage;
 
 async function reloadSalesData() {
   salesLogs = await api.get('/api/logs');
@@ -325,33 +334,97 @@ function exportSalesXLS() {
   toast('Excel exportado ⬇️');
 }
 
-function salesTableHTML(logs) {
-  if (!logs.length) {
-    return `<div class="empty"><div class="big">📭</div><h2>Nenhuma venda encontrada</h2>
-      <p>Ajuste os filtros acima ou aguarde novas vendas.</p></div>`;
+function exportSalesCSV() {
+  const head = ['Data', 'Tipo', 'Produto', 'Nome', 'Telefone', 'Email', 'CPF', 'Status', 'Erro'];
+  const rows = [head];
+  salesFiltered.forEach(l => rows.push([
+    new Date(l.at).toLocaleString('pt-BR'), l.event || '', logProductName(l), l.buyerName || '',
+    l.buyerPhone || '', l.buyerEmail || '', l.buyerDocument || '', l.status || '', l.error || '',
+  ]));
+  const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(';')).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'vendas.csv';
+  a.click();
+  toast('CSV exportado ⬇️');
+}
+
+// Badge "Tipo" — diferencia boas-vindas / livro / teste / etc.
+function eventoBadge(l) {
+  const e = (l.event || '').toUpperCase();
+  let label = l.event || '—', bg = '#eef0f6', fg = '#7b7f95';
+  if (e.includes('LIVRO')) { label = '📕 Livro'; bg = '#ede9fe'; fg = '#6d28d9'; }
+  else if (e.includes('APPROVED') || e.includes('APROVAD')) { label = '🎉 Boas-vindas'; bg = '#e6f8f0'; fg = '#0b7a4f'; }
+  else if (e.includes('TESTE')) { label = '🧪 Teste'; bg = '#fff7e6'; fg = '#b7791f'; }
+  else if (e.includes('MASSA')) { label = '📤 Massa'; bg = '#e0f2fe'; fg = '#0369a1'; }
+  else if (/(CANCEL|REFUND|CHARGEBACK|EXPIRED|COMPLETE|BILLET|PROTEST|WEBHOOK|OTHER)/.test(e)) { label = '⏭️ Ignorado'; bg = '#f1f2f8'; fg = '#9a9eb2'; }
+  return `<span style="background:${bg};color:${fg};font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap">${esc(label)}</span>`;
+}
+
+function pageButtons(totalPages) {
+  if (totalPages <= 1) return '';
+  const p = salesPage;
+  const btn = (n, txt, on = true, active = false) => `<button ${on ? '' : 'disabled'} onclick="${on ? `gotoSalesPage(${n})` : ''}"
+    style="min-width:34px;height:34px;border-radius:9px;font-weight:700;font-size:13px;padding:0 8px;
+    ${active ? 'background:linear-gradient(135deg,#f04e23,#ff7a4d);color:#fff' : 'background:#f4f5f9;color:#1a1c2e'};${on ? '' : 'opacity:.4'}">${txt}</button>`;
+  const nums = [...new Set([1, p - 1, p, p + 1, totalPages])].filter(n => n >= 1 && n <= totalPages).sort((a, b) => a - b);
+  let html = `<div style="display:flex;gap:6px;justify-content:center;align-items:center;padding:16px;flex-wrap:wrap">`;
+  html += btn(p - 1, '‹', p > 1);
+  let prev = 0;
+  for (const n of nums) {
+    if (n - prev > 1) html += `<span style="color:var(--muted);padding:0 2px">…</span>`;
+    html += btn(n, String(n), true, n === p);
+    prev = n;
   }
-  const rows = logs.map(l => {
+  html += btn(p + 1, '›', p < totalPages);
+  return html + '</div>';
+}
+
+function renderSalesTable() {
+  const box = $('#sales-table');
+  if (!box) return;
+  const logs = salesFiltered;
+  if (!logs.length) {
+    box.innerHTML = `<div class="empty"><div class="big">📭</div><h2>Nenhuma venda encontrada</h2>
+      <p>Ajuste os filtros acima ou aguarde novas vendas.</p></div>`;
+    return;
+  }
+  const totalPages = Math.ceil(logs.length / SALES_PER_PAGE);
+  if (salesPage > totalPages) salesPage = totalPages;
+  const start = (salesPage - 1) * SALES_PER_PAGE;
+  const pageLogs = logs.slice(start, start + SALES_PER_PAGE);
+
+  const rows = pageLogs.map(l => {
     const cls = l.status?.includes('enviado') ? 'enviado' : l.status?.includes('falhou') ? 'falhou'
       : l.status?.includes('rejeitado') ? 'rejeitado' : l.status?.includes('ignorado') ? 'ignorado' : 'recebido';
     const when = new Date(l.at).toLocaleString('pt-BR');
     return `<tr>
       <td style="white-space:nowrap">${when}</td>
-      <td><b>${esc(logProductName(l))}</b></td>
-      <td>${esc(l.buyerName || '—')}</td>
+      <td>${eventoBadge(l)}</td>
+      <td style="min-width:130px"><b>${esc(logProductName(l))}</b></td>
+      <td style="min-width:130px">${esc(l.buyerName || '—')}</td>
       <td style="white-space:nowrap">${esc(l.buyerPhone || '—')}</td>
-      <td>${esc(l.buyerEmail || '—')}</td>
+      <td style="min-width:180px">${esc(l.buyerEmail || '—')}</td>
       <td style="white-space:nowrap">${esc(l.buyerDocument || '—')}</td>
       <td><span class="status-tag status-${cls}">${esc(l.status || '')}</span>${l.error ? `<br><span style="color:var(--red);font-size:11px">${esc(l.error)}</span>` : ''}</td>
       <td style="white-space:nowrap">
-        <button onclick="reprocessLog('${l.id}', this)" title="Reenviar a mensagem" style="background:#eef0f6;border-radius:7px;padding:5px 9px;font-size:13px;margin-right:4px">🔄</button>
-        <button onclick="deleteLog('${l.id}')" title="Excluir registro" style="background:#fdecec;border-radius:7px;padding:5px 9px;font-size:13px">🗑</button>
+        <button onclick="reprocessLog('${l.id}', this)" title="Reenviar a mensagem" style="background:#eef0f6;border-radius:7px;padding:6px 10px;font-size:14px;margin-right:4px">🔄</button>
+        <button onclick="deleteLog('${l.id}')" title="Excluir registro" style="background:#fdecec;border-radius:7px;padding:6px 10px;font-size:14px">🗑</button>
       </td>
     </tr>`;
   }).join('');
-  return `<div style="padding:10px 14px 4px;color:var(--muted);font-size:12px;font-weight:600">${logs.length} registro(s)</div>
-    <div style="overflow-x:auto"><table class="table">
-      <thead><tr><th>Data</th><th>Produto</th><th>Nome</th><th>Telefone</th><th>E-mail</th><th>CPF</th><th>Status</th><th>Ações</th></tr></thead>
-      <tbody>${rows}</tbody></table></div>`;
+
+  box.innerHTML = `
+    <div style="padding:12px 14px 8px;color:var(--muted);font-size:12px;font-weight:600">
+      ${logs.length} registro(s) · mostrando ${start + 1}–${Math.min(start + SALES_PER_PAGE, logs.length)} · página ${salesPage} de ${totalPages}
+    </div>
+    <div style="overflow-x:auto"><table class="table" style="min-width:980px">
+      <thead><tr>
+        <th>Data</th><th>Tipo</th><th>Produto</th><th>Nome</th><th>Telefone</th><th>E-mail</th><th>CPF</th><th>Status</th><th>Ações</th>
+      </tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    ${pageButtons(totalPages)}`;
 }
 
 // ====================== Tela: Configurações ======================
