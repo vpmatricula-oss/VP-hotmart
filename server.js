@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { store } from './lib/store.js';
 import { enviarBoasVindas } from './lib/manychat.js';
 import { auth } from './lib/auth.js';
-import { wooEnabled, wooPing, getBookRedeemers } from './lib/woocommerce.js';
+import { wooEnabled, wooPing, getRedemptionForEmails } from './lib/woocommerce.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, 'public');
@@ -177,27 +177,33 @@ app.get('/api/livro/cross', auth.requireAuth, async (req, res) => {
     if (!produto.livroWooProductId) return res.status(400).json({ error: 'Configure o ID do livro (Woo) na aba deste produto.' });
     if (!wooEnabled) return res.status(400).json({ error: 'WooCommerce não está configurado no servidor.' });
 
-    // Compradores deste produto (e-mails únicos, a partir dos logs)
+    // Compradores deste produto (e-mails únicos, a partir dos logs), filtrando por data se configurado.
+    const cutoff = produto.livroDesde ? new Date(produto.livroDesde + 'T00:00:00').toISOString() : null;
     const logs = await store.getLogs();
     const buyers = new Map();
     for (const l of logs) {
-      if (l.productId === produto.id && l.buyerEmail) {
-        const e = l.buyerEmail.toLowerCase().trim();
-        if (!buyers.has(e)) buyers.set(e, { email: l.buyerEmail, name: l.buyerName || '—', phone: l.buyerPhone || '', document: l.buyerDocument || '' });
-      }
+      if (l.productId !== produto.id || !l.buyerEmail) continue;
+      if (cutoff && l.at < cutoff) continue; // só de 'livroDesde' em diante
+      const e = l.buyerEmail.toLowerCase().trim();
+      if (!buyers.has(e)) buyers.set(e, { email: l.buyerEmail, name: l.buyerName || '—', phone: l.buyerPhone || '', document: l.buyerDocument || '' });
     }
 
-    const redeemers = await getBookRedeemers(produto.livroWooProductId);
+    const redemption = await getRedemptionForEmails(produto.livroWooProductId, [...buyers.keys()], {
+      coupon: produto.livroCoupon || '',
+      after: cutoff,
+    });
     const ok = [], pendente = [];
     for (const [email, info] of buyers) {
-      if (redeemers.has(email)) ok.push({ ...info, woo: redeemers.get(email) });
+      const red = redemption.get(email);
+      if (red) ok.push({ ...info, woo: red });
       else pendente.push(info);
     }
     res.json({
       produto: produto.name,
       hasBookFlow: !!produto.livroFlowNs,
+      coupon: produto.livroCoupon || '(qualquer)',
+      desde: produto.livroDesde || '(todas)',
       buyers: buyers.size,
-      redeemersTotal: redeemers.size,
       ok, pendente,
     });
   } catch (e) {

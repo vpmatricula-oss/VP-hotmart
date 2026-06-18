@@ -147,6 +147,14 @@ function renderProduct() {
       <div class="field"><label>Flow ID da mensagem do livro (ManyChat)</label>
         <div class="desc">O flow (<b>content...</b>) que será disparado no "📕 Livro". Pode ser diferente do de boas-vindas.</div>
         <input class="input" id="f-livro-flow" value="${esc(p.livroFlowNs || '')}" placeholder="ex: content2026...." /></div>
+      <div class="row">
+        <div class="field"><label>Cupom do resgate (opcional)</label>
+          <div class="desc">Só conta como "já resgatou" se usou ESTE cupom. Vazio = qualquer cupom.</div>
+          <input class="input" id="f-livro-cupom" value="${esc(p.livroCoupon || '')}" placeholder="ex: 5hv65dnx" /></div>
+        <div class="field"><label>Considerar compras a partir de</label>
+          <div class="desc">Ignora compradores antes desta data.</div>
+          <input class="input" type="date" id="f-livro-desde" value="${esc(p.livroDesde || '')}" /></div>
+      </div>
     </div>
 
     <div class="card">
@@ -182,6 +190,8 @@ async function saveProduct(id) {
     templateName: $('#f-tpl-name').value.trim(),
     livroWooProductId: $('#f-livro-woo').value.trim(),
     livroFlowNs: $('#f-livro-flow').value.trim(),
+    livroCoupon: $('#f-livro-cupom').value.trim(),
+    livroDesde: $('#f-livro-desde').value.trim(),
     active: $('#f-active').checked,
   };
   await api.put('/api/products/' + id, patch);
@@ -481,7 +491,8 @@ async function analisarLivro() {
     btn.disabled = false; btn.textContent = '🔎 Analisar (consultar Woo)';
     if (r.error) { $('#lv-status').innerHTML = `<span style="color:var(--red)">${esc(r.error)}</span>`; return; }
     livroPendentes = r.pendente || [];
-    $('#lv-status').innerHTML = `Compradores no painel: <b>${r.buyers}</b> · Já resgataram (Woo): <b>${r.ok.length}</b> · Pendentes: <b style="color:var(--brand)">${r.pendente.length}</b>`;
+    $('#lv-status').innerHTML = `Compradores: <b>${r.buyers}</b> · Já resgataram: <b>${r.ok.length}</b> · Pendentes: <b style="color:var(--brand)">${r.pendente.length}</b>
+      <br><span style="font-size:12px">Regra: cupom <b>${esc(r.coupon)}</b> · a partir de <b>${esc(r.desde)}</b></span>`;
 
     const rowsP = r.pendente.map((b, i) => `<tr>
       <td><input type="checkbox" class="lv-chk" data-i="${i}" checked></td>
